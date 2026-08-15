@@ -70,8 +70,13 @@
 
     <div class="input-section">
       <input type="text" id="taskInput" placeholder="Add a new task..." />
-      <button onclick="addTask()">Add task</button>
+     <button onclick="addTask()">Add task</button>
     </div>
+
+    <label style="display:flex; align-items:center; gap:8px; margin:-1rem 0 1.5rem; font-size:14px; color:#666; cursor:pointer;">
+      <input type="checkbox" id="banglaToggle" checked style="width:16px; height:16px; cursor:pointer;" />
+      বাংলা হরফে লেখো (Banglish → বাংলা)
+    </label>
 
     <div class="stats">
       <div class="stat-card">
@@ -159,24 +164,48 @@
       }
     };
 
+    window.toBangla = async function(text) {
+      try {
+        const url = 'https://inputtools.google.com/request?text=' + encodeURIComponent(text) +
+                    '&itc=bn-t-i0-und&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8';
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data[0] === 'SUCCESS' && data[1] && data[1][0] && data[1][0][1]) {
+          return data[1][0][1][0];
+        }
+        return text;
+      } catch (err) {
+        console.error('Transliteration failed:', err);
+        return text;
+      }
+    };
+
     window.addTask = async function() {
       const input = document.getElementById('taskInput');
-      const text = input.value.trim();
+      const btn = document.querySelector('.input-section button');
+      let text = input.value.trim();
       if (!text) {
         input.style.borderColor = '#e24b4a';
         setTimeout(() => input.style.borderColor = '', 1500);
         return;
       }
+      const wantBangla = document.getElementById('banglaToggle').checked;
       try {
-        console.log('Adding task:', text);
-        const result = await window.apiCall('POST', '/tasks', { text, status: 'pending' });
-        console.log('Task added:', result);
+        btn.disabled = true;
+        btn.textContent = wantBangla ? 'Converting...' : 'Adding...';
+        if (wantBangla) {
+          text = await window.toBangla(text);
+        }
+        await window.apiCall('POST', '/tasks', { text, status: 'pending' });
         input.value = '';
         input.focus();
         await window.loadTasks();
       } catch (err) {
         console.error('Add task error:', err);
         window.showError('Failed to add task: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add task';
       }
     };
 
