@@ -48,6 +48,9 @@
     .stat-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; flex: 1; text-align: center; }
     .stat-number { font-size: 24px; font-weight: 600; color: #378ADD; }
     .stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+    .stat-card { cursor: pointer; transition: all 0.2s; user-select: none; }
+    .stat-card:hover { border-color: #378ADD; }
+    .stat-card.active { border-color: #378ADD; border-width: 2px; background: #f5f9fe; }
     .board.pending .status-indicator { background: #ba7517; }
     .board.progress .status-indicator { background: #378ADD; }
     .board.done .status-indicator { background: #3b6d11; }
@@ -78,20 +81,20 @@
       বাংলা হরফে লেখো (Banglish → বাংলা)
     </label>
 
-    <div class="stats">
-      <div class="stat-card">
+ <div class="stats">
+      <div class="stat-card active" data-filter="all" onclick="window.setFilter('all')">
         <div class="stat-number" id="totalTasks">0</div>
         <div class="stat-label">Total tasks</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" data-filter="pending" onclick="window.setFilter('pending')">
         <div class="stat-number" id="pendingTasks">0</div>
         <div class="stat-label">Pending</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" data-filter="in-progress" onclick="window.setFilter('in-progress')">
         <div class="stat-number" id="inProgressTasks">0</div>
         <div class="stat-label">In progress</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" data-filter="done" onclick="window.setFilter('done')">
         <div class="stat-number" id="doneTasks">0</div>
         <div class="stat-label">Done</div>
       </div>
@@ -225,6 +228,23 @@
       } catch (err) {
         window.showError('Failed to update task: ' + err.message);
       }
+    };
+    window.currentFilter = 'all';
+
+    window.setFilter = function(filter) {
+      window.currentFilter = filter;
+      document.querySelectorAll('.stat-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.filter === filter);
+      });
+      const map = { 'pending': 'pending-board', 'in-progress': 'progress-board', 'done': 'done-board' };
+      ['pending-board', 'progress-board', 'done-board'].forEach(id => {
+        const board = document.getElementById(id);
+        if (filter === 'all') {
+          board.style.display = 'flex';
+        } else {
+          board.style.display = (id === map[filter]) ? 'flex' : 'none';
+        }
+      });
     };
 
  window.STATUS_ORDER = ['pending', 'in-progress', 'done'];
