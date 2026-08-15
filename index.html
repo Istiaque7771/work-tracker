@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Work Tracker - Manage your tasks across all devices">
+  <title>Work Tracker</title>
+  <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Work%20Tracker%22,%22short_name%22:%22Tasks%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%23ffffff%22,%22theme_color%22:%22%23378ADD%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%20192%20192%27%3E%3Crect%20fill=%27%23378ADD%27%20width=%27192%27%20height=%27192%27/%3E%3Ctext%20x=%2796%27%20y=%27120%27%20font-size=%2760%27%20fill=%27white%27%20text-anchor=%27middle%27%20font-weight=%27bold%27%3ETW%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg+xml%22}]}">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    body { background: #f5f5f5; color: #1a1a1a; }
+    .app { min-height: 100vh; padding: 1.5rem; max-width: 1400px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 0.5rem; }
+    .header p { color: #666; font-size: 14px; }
+    .input-section { display: flex; gap: 10px; margin-bottom: 2rem; }
+    .input-section input { flex: 1; padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; }
+    .input-section input:focus { outline: none; border-color: #378ADD; box-shadow: 0 0 0 3px rgba(55, 138, 221, 0.1); }
+    .input-section button { padding: 12px 24px; background: #378ADD; color: white; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 15px; }
+    .input-section button:hover { background: #2968a8; }
+    .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .board { background: white; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.5rem; min-height: 500px; display: flex; flex-direction: column; }
+    .board h2 { font-size: 16px; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; color: #333; }
+    .board-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+    .tasks { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 300px; }
+    .task { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; cursor: grab; transition: all 0.2s; word-break: break-word; }
+    .task:hover { border-color: #378ADD; background: #fafbff; box-shadow: 0 2px 8px rgba(55, 138, 221, 0.1); }
+    .task:active { cursor: grabbing; }
+    .task.dragging { opacity: 0.5; }
+    .task-text { font-size: 14px; color: #333; margin-bottom: 8px; }
+    .task-actions { display: flex; justify-content: flex-end; }
+    .delete-btn { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; padding: 4px 8px; }
+    .delete-btn:hover { color: #e24b4a; }
+    .status-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+    .status-pending { background: #ba7517; }
+    .status-progress { background: #378ADD; }
+    .status-done { background: #3b6d11; }
+    .loading { text-align: center; padding: 2rem; color: #666; }
+    .error { background: #fcebeb; border: 1px solid #e24b4a; color: #e24b4a; padding: 12px 14px; border-radius: 8px; margin-bottom: 1rem; }
+    .install-prompt { background: #e6f1fb; border: 1px solid #85b7eb; border-radius: 8px; padding: 12px 14px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .install-prompt button { padding: 8px 16px; background: #378ADD; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    .stats { display: flex; gap: 12px; margin-bottom: 1.5rem; }
+    .stat-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; flex: 1; text-align: center; }
+    .stat-number { font-size: 24px; font-weight: 600; color: #378ADD; }
+    .stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+    .board.pending .status-indicator { background: #ba7517; }
+    .board.progress .status-indicator { background: #378ADD; }
+    .board.done .status-indicator { background: #3b6d11; }
+    .empty-board { color: #999; text-align: center; padding: 2rem 1rem; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="header">
+      <h1>Work Tracker</h1>
+      <p>Manage your tasks across all devices in real-time</p>
+    </div>
+    
+    <div id="installPrompt" class="install-prompt" style="display: none;">
+      <span>Install this app on your home screen for quick access</span>
+      <button onclick="installApp()">Install</button>
+    </div>
+
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div class="input-section">
+      <input type="text" id="taskInput" placeholder="Add a new task..." />
+      <button onclick="addTask()">Add task</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-number" id="totalTasks">0</div>
+        <div class="stat-label">Total tasks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="pendingTasks">0</div>
+        <div class="stat-label">Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="inProgressTasks">0</div>
+        <div class="stat-label">In progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="doneTasks">0</div>
+        <div class="stat-label">Done</div>
+      </div>
+    </div>
+
+    <div class="boards">
+      <div class="board pending" id="pending-board">
+        <h2><span class="status-indicator status-pending"></span>Pending</h2>
+        <div class="tasks" data-status="pending"></div>
+      </div>
+      <div class="board progress" id="progress-board">
+        <h2><span class="status-indicator status-progress"></span>In progress</h2>
+        <div class="tasks" data-status="in-progress"></div>
+      </div>
+      <div class="board done" id="done-board">
+        <h2><span class="status-indicator status-done"></span>Done</h2>
+        <div class="tasks" data-status="done"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.SUPABASE_URL = 'https://zjyfmmammustlveqzqh.supabase.co';
+    window.SUPABASE_ANON_KEY = 'sb_publishable_TXtq0aXlKInmXJTy7O_cQQ_DX9H2BuS';
+    
+    window.tasks = [];
+    window.draggedElement = null;
+    window.deferredPrompt = null;
+
+    window.apiCall = async function(method, endpoint, body = null) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + window.SUPABASE_ANON_KEY,
+        'apikey': window.SUPABASE_ANON_KEY,
+        'Prefer': 'return=representation'
+      };
+      const url = window.SUPABASE_URL + '/rest/v1' + endpoint;
+      const options = { 
+        method, 
+        headers,
+        mode: 'cors'
+      };
+      if (body) options.body = JSON.stringify(body);
+      
+      try {
+        const res = await fetch(url, options);
+        const text = await res.text();
+        if (!text) return [];
+        const data = JSON.parse(text);
+        if (!res.ok) throw new Error(data.message || 'Request failed');
+        return data;
+      } catch (err) {
+        console.error('API Error:', err, 'URL:', url);
+        throw err;
+      }
+    };
+
+    window.initSupabase = async function() {
+      await window.loadTasks();
+      setInterval(window.loadTasks, 2000);
+    };
+
+    window.loadTasks = async function() {
+      try {
+        const data = await window.apiCall('GET', '/tasks?order=id.desc');
+        window.tasks = Array.isArray(data) ? data : [];
+        window.renderTasks();
+      } catch (err) {
+        console.error('Error loading tasks:', err);
+      }
+    };
+
+    window.addTask = async function() {
+      const input = document.getElementById('taskInput');
+      const text = input.value.trim();
+      if (!text) {
+        input.style.borderColor = '#e24b4a';
+        setTimeout(() => input.style.borderColor = '', 1500);
+        return;
+      }
+      try {
+        console.log('Adding task:', text);
+        const result = await window.apiCall('POST', '/tasks', { text, status: 'pending' });
+        console.log('Task added:', result);
+        input.value = '';
+        input.focus();
+        await window.loadTasks();
+      } catch (err) {
+        console.error('Add task error:', err);
+        window.showError('Failed to add task: ' + err.message);
+      }
+    };
+
+    window.deleteTask = async function(id) {
+      try {
+        await window.apiCall('DELETE', '/tasks?id=eq.' + id);
+        await window.loadTasks();
+      } catch (err) {
+        window.showError('Failed to delete task: ' + err.message);
+      }
+    };
+
+    window.updateTaskStatus = async function(id, status) {
+      try {
+        await window.apiCall('PATCH', '/tasks?id=eq.' + id, { status });
+        await window.loadTasks();
+      } catch (err) {
+        window.showError('Failed to update task: ' + err.message);
+      }
+    };
+
+    window.renderTasks = function() {
+      document.querySelectorAll('.tasks').forEach(container => container.innerHTML = '');
+      
+      window.tasks.forEach(task => {
+        const container = document.querySelector(`.tasks[data-status="${task.status}"]`);
+        if (container) {
+          const el = document.createElement('div');
+          el.className = 'task';
+          el.draggable = true;
+          el.dataset.taskId = task.id;
+          el.innerHTML = `
+            <div class="task-text">${window.escapeHtml(task.text)}</div>
+            <div class="task-actions">
+              <button class="delete-btn" onclick="window.deleteTask(${task.id})">✕</button>
+            </div>
+          `;
+          
+          el.addEventListener('dragstart', (e) => {
+            window.draggedElement = el;
+            el.classList.add('dragging');
+          });
+          
+          el.addEventListener('dragend', () => {
+            el.classList.remove('dragging');
+          });
+          
+          container.appendChild(el);
+        }
+      });
+
+      document.querySelectorAll('.tasks').forEach(container => {
+        if (container.children.length === 0) {
+          container.innerHTML = '<div class="empty-board">No tasks yet</div>';
+        }
+        
+        container.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          container.parentElement.style.background = '#fafbff';
+        });
+        
+        container.addEventListener('dragleave', () => {
+          container.parentElement.style.background = 'white';
+        });
+        
+        container.addEventListener('drop', (e) => {
+          e.preventDefault();
+          container.parentElement.style.background = 'white';
+          
+          if (window.draggedElement) {
+            const taskId = parseInt(window.draggedElement.dataset.taskId);
+            const newStatus = container.dataset.status;
+            window.updateTaskStatus(taskId, newStatus);
+          }
+        });
+      });
+
+      window.updateStats();
+    };
+
+    window.updateStats = function() {
+      const total = window.tasks.length;
+      const pending = window.tasks.filter(t => t.status === 'pending').length;
+      const inProgress = window.tasks.filter(t => t.status === 'in-progress').length;
+      const done = window.tasks.filter(t => t.status === 'done').length;
+      
+      document.getElementById('totalTasks').textContent = total;
+      document.getElementById('pendingTasks').textContent = pending;
+      document.getElementById('inProgressTasks').textContent = inProgress;
+      document.getElementById('doneTasks').textContent = done;
+    };
+
+    window.showError = function(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 5000);
+    };
+
+    window.escapeHtml = function(text) {
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+      return text.replace(/[&<>"']/g, m => map[m]);
+    };
+
+    window.installApp = function() {
+      if (window.deferredPrompt) {
+        window.deferredPrompt.prompt();
+        window.deferredPrompt = null;
+        document.getElementById('installPrompt').style.display = 'none';
+      }
+    };
+
+    document.getElementById('taskInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') window.addTask();
+    });
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window.deferredPrompt = e;
+      document.getElementById('installPrompt').style.display = 'flex';
+    });
+
+
+
+    window.initSupabase();
+  </script>
+</body>
+</html>
