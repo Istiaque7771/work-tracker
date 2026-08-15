@@ -36,6 +36,9 @@
     .move-btn:disabled { opacity: 0.3; cursor: default; }
     .delete-btn { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; padding: 6px 8px; min-height: 34px; }
     .delete-btn:hover { color: #e24b4a; }
+    .edit-btn { background: white; border: 1px solid #ddd; color: #555; cursor: pointer; font-size: 14px; padding: 6px 12px; border-radius: 6px; line-height: 1; min-height: 34px; }
+    .edit-btn:hover { border-color: #378ADD; color: #378ADD; }
+    .task-edit-input { width: 100%; padding: 8px 10px; border: 1px solid #378ADD; border-radius: 6px; font-size: 14px; font-family: inherit; margin-bottom: 8px; }
     .status-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
     .status-pending { background: #ba7517; }
     .status-progress { background: #378ADD; }
@@ -158,7 +161,7 @@
     };
 
     window.loadTasks = async function() {
-      try {
+      try {if (window.editingId !== null) return;
         const data = await window.apiCall('GET', '/tasks?order=id.desc');
         window.tasks = Array.isArray(data) ? data : [];
         window.renderTasks();
@@ -174,7 +177,9 @@
         const res = await fetch(url);
         const data = await res.json();
         if (data[0] === 'SUCCESS' && data[1] && data[1][0] && data[1][0][1]) {
-          return data[1][0][1][0];
+          const t = document.createElement('textarea');
+          t.innerHTML = data[1][0][1][0];
+          return t.value;
         }
         return text;
       } catch (err) {
@@ -248,7 +253,33 @@
     };
 
  window.STATUS_ORDER = ['pending', 'in-progress', 'done'];
+window.editingId = null;
 
+    window.startEdit = function(id) {
+      window.editingId = id;
+      window.renderTasks();
+      const input = document.querySelector('.task-edit-input');
+      if (input) { input.focus(); input.select(); }
+    };
+
+    window.cancelEdit = function() {
+      window.editingId = null;
+      window.renderTasks();
+    };
+
+    window.saveEdit = async function(id) {
+      const input = document.querySelector('.task-edit-input');
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+      window.editingId = null;
+      try {
+        await window.apiCall('PATCH', '/tasks?id=eq.' + id, { text });
+        await window.loadTasks();
+      } catch (err) {
+        window.showError('Failed to save: ' + err.message);
+      }
+    };
     window.moveTask = function(id, direction) {
       const task = window.tasks.find(t => t.id === id);
       if (!task) return;
@@ -269,14 +300,27 @@
           el.className = 'task';
           el.draggable = true;
           el.dataset.taskId = task.id;
-          el.innerHTML = `
-            <div class="task-text">${window.escapeHtml(task.text)}</div>
-            <div class="task-actions">
-              <button class="move-btn" ${idx <= 0 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, -1)">←</button>
-              <button class="move-btn" ${idx >= 2 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, 1)">→</button>
-              <button class="delete-btn" onclick="window.deleteTask(${task.id})">✕</button>
-            </div>
-          `;
+         if (window.editingId === task.id) {
+            el.draggable = false;
+            el.innerHTML = `
+              <input class="task-edit-input" type="text" value="${window.escapeHtml(task.text)}"
+                     onkeydown="if(event.key==='Enter'){window.saveEdit(${task.id})}else if(event.key==='Escape'){window.cancelEdit()}" />
+              <div class="task-actions">
+                <button class="edit-btn" onclick="window.saveEdit(${task.id})">Save</button>
+                <button class="edit-btn" onclick="window.cancelEdit()">Cancel</button>
+              </div>
+            `;
+          } else {
+            el.innerHTML = `
+              <div class="task-text">${window.escapeHtml(task.text)}</div>
+              <div class="task-actions">
+                <button class="move-btn" ${idx <= 0 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, -1)">←</button>
+                <button class="move-btn" ${idx >= 2 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, 1)">→</button>
+                <button class="edit-btn" onclick="window.startEdit(${task.id})">Edit</button>
+                <button class="delete-btn" onclick="window.deleteTask(${task.id})">✕</button>
+              </div>
+            `;
+          }
           
           el.addEventListener('dragstart', (e) => {
             window.draggedElement = el;
