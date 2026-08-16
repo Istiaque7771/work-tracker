@@ -100,7 +100,8 @@
       <input type="checkbox" id="banglaToggle" checked style="width:16px; height:16px; cursor:pointer;" />
       বাংলা হরফে লেখো (Banglish → বাংলা)
     </label>
-
+<button onclick="window.sortByPriority()" style="padding:8px 16px; background:white; border:1px solid #ddd; border-radius:8px; cursor:pointer; font-size:14px; margin-bottom:1.5rem;">⚑ জরুরি কাজ উপরে সাজাও</button>
+    
  <div class="stats">
       <div class="stat-card active" data-filter="all" onclick="window.setFilter('all')">
         <div class="stat-number" id="totalTasks">0</div>
@@ -177,10 +178,13 @@
       setInterval(window.loadTasks, 2000);
     };
 
-    window.loadTasks = async function() {
-      try {if (window.editingId !== null) return;
-        const data = await window.apiCall('GET', '/tasks?order=id.desc');
-        window.tasks = Array.isArray(data) ? data : [];
+   window.loadTasks = async function() {
+      if (window.editingId !== null) return;
+      try {
+        const data = await window.apiCall('GET', '/tasks');
+        window.tasks = (Array.isArray(data) ? data : []).sort((a, b) =>
+          (a.sort_order ?? a.id) - (b.sort_order ?? b.id)
+        );
         window.renderTasks();
       } catch (err) {
         console.error('Error loading tasks:', err);
@@ -278,7 +282,40 @@
       low:       { label: 'কম জরুরি',    order: 3 }
     };
     window.PRIO_ORDER = ['high', 'important', 'regular', 'low'];
+window.reorder = async function(id, dir) {
+      const task = window.tasks.find(t => t.id === id);
+      if (!task) return;
+      const col = window.tasks.filter(t => t.status === task.status);
+      const i = col.findIndex(t => t.id === id);
+      const j = i + dir;
+      if (j < 0 || j >= col.length) return;
+      const other = col[j];
+      const a = task.sort_order ?? task.id;
+      const b = other.sort_order ?? other.id;
+      try {
+        await window.apiCall('PATCH', '/tasks?id=eq.' + task.id, { sort_order: b });
+        await window.apiCall('PATCH', '/tasks?id=eq.' + other.id, { sort_order: a });
+        await window.loadTasks();
+      } catch (err) {
+        window.showError('Failed to reorder: ' + err.message);
+      }
+    };
 
+    window.sortByPriority = async function() {
+      const order = { high: 0, important: 1, regular: 2, low: 3 };
+      const sorted = [...window.tasks].sort((a, b) =>
+        order[a.priority || 'regular'] - order[b.priority || 'regular']
+      );
+      try {
+        for (let i = 0; i < sorted.length; i++) {
+          await window.apiCall('PATCH', '/tasks?id=eq.' + sorted[i].id, { sort_order: i + 1 });
+        }
+        await window.loadTasks();
+      } catch (err) {
+        window.showError('Failed to sort: ' + err.message);
+      }
+    };
+    
     window.cyclePriority = async function(id) {
       const task = window.tasks.find(t => t.id === id);
       if (!task) return;
@@ -356,6 +393,8 @@ window.editingId = null;
               <div class="task-actions">
                 <button class="move-btn" ${idx <= 0 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, -1)">←</button>
                 <button class="move-btn" ${idx >= 2 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, 1)">→</button>
+                <button class="move-btn" onclick="window.reorder(${task.id}, -1)" title="উপরে">↑</button>
+                <button class="move-btn" onclick="window.reorder(${task.id}, 1)" title="নিচে">↓</button>
                 <button class="prio-btn" onclick="window.cyclePriority(${task.id})" title="Change priority">⚑</button>
                 <button class="edit-btn" onclick="window.startEdit(${task.id})">Edit</button>
                 <button class="delete-btn" onclick="window.deleteTask(${task.id})">✕</button>
