@@ -15,11 +15,11 @@
     .header { margin-bottom: 2rem; }
     .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 0.5rem; }
     .header p { color: #666; font-size: 14px; }
-    .input-section { display: flex; gap: 10px; margin-bottom: 2rem; }
-    .input-section input { flex: 1; padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; }
-    .input-section input:focus { outline: none; border-color: #378ADD; box-shadow: 0 0 0 3px rgba(55, 138, 221, 0.1); }
-    .input-section button { padding: 12px 24px; background: #378ADD; color: white; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 15px; }
-    .input-section button:hover { background: #2968a8; }
+    .<button onclick="addTask()">Add task</button> { display: flex; gap: 10px; margin-bottom: 2rem; }
+    .<button onclick="addTask()">Add task</button> input { flex: 1; padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; }
+    .<button onclick="addTask()">Add task</button> input:focus { outline: none; border-color: #378ADD; box-shadow: 0 0 0 3px rgba(55, 138, 221, 0.1); }
+    .<button onclick="addTask()">Add task</button> button { padding: 12px 24px; background: #378ADD; color: white; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 15px; }
+    .<button onclick="addTask()">Add task</button> button:hover { background: #2968a8; }
     .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .board { background: white; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.5rem; min-height: 500px; display: flex; flex-direction: column; }
     .board h2 { font-size: 16px; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; color: #333; }
@@ -38,6 +38,18 @@
     .delete-btn:hover { color: #e24b4a; }
     .edit-btn { background: white; border: 1px solid #ddd; color: #555; cursor: pointer; font-size: 14px; padding: 6px 12px; border-radius: 6px; line-height: 1; min-height: 34px; }
     .edit-btn:hover { border-color: #378ADD; color: #378ADD; }
+    .task { border-left-width: 5px; }
+    .task.p-high { border-left-color: #e24b4a; }
+    .task.p-important { border-left-color: #e08b00; }
+    .task.p-regular { border-left-color: #378ADD; }
+    .task.p-low { border-left-color: #c4c4c4; }
+    .badge { display:inline-block; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; margin-bottom:6px; }
+    .badge.p-high { background:#fcebeb; color:#c23b3a; }
+    .badge.p-important { background:#fdf3e0; color:#a86800; }
+    .badge.p-regular { background:#e6f1fb; color:#2968a8; }
+    .badge.p-low { background:#f0f0f0; color:#777; }
+    .prio-btn { background:white; border:1px solid #ddd; cursor:pointer; font-size:13px; padding:6px 10px; border-radius:6px; min-height:34px; }
+    .prio-btn:hover { border-color:#378ADD; }
     .task-edit-input { width: 100%; padding: 8px 10px; border: 1px solid #378ADD; border-radius: 6px; font-size: 14px; font-family: inherit; margin-bottom: 8px; }
     .status-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
     .status-pending { background: #ba7517; }
@@ -73,7 +85,13 @@
     </div>
 
     <div id="error" class="error" style="display: none;"></div>
-
+<select id="prioritySelect" style="padding:12px 10px; border:1px solid #ddd; border-radius:8px; font-size:15px; cursor:pointer;">
+        <option value="high">🔴 জরুরি</option>
+        <option value="important">🟠 গুরুত্বপূর্ণ</option>
+        <option value="regular" selected>🔵 সাধারণ</option>
+        <option value="low">⚪ কম জরুরি</option>
+      </select>
+    
     <div class="input-section">
       <input type="text" id="taskInput" placeholder="Add a new task..." />
      <button onclick="addTask()">Add task</button>
@@ -204,7 +222,8 @@
         if (wantBangla) {
           text = await window.toBangla(text);
         }
-        await window.apiCall('POST', '/tasks', { text, status: 'pending' });
+        const priority = document.getElementById('prioritySelect').value;
+        await window.apiCall('POST', '/tasks', { text, status: 'pending', priority });
         input.value = '';
         input.focus();
         await window.loadTasks();
@@ -253,6 +272,26 @@
     };
 
  window.STATUS_ORDER = ['pending', 'in-progress', 'done'];
+    window.PRIO = {
+      high:      { label: 'জরুরি',      order: 0 },
+      important: { label: 'গুরুত্বপূর্ণ', order: 1 },
+      regular:   { label: 'সাধারণ',      order: 2 },
+      low:       { label: 'কম জরুরি',    order: 3 }
+    };
+    window.PRIO_ORDER = ['high', 'important', 'regular', 'low'];
+
+    window.cyclePriority = async function(id) {
+      const task = window.tasks.find(t => t.id === id);
+      if (!task) return;
+      const cur = window.PRIO_ORDER.indexOf(task.priority || 'regular');
+      const next = window.PRIO_ORDER[(cur + 1) % 4];
+      try {
+        await window.apiCall('PATCH', '/tasks?id=eq.' + id, { priority: next });
+        await window.loadTasks();
+      } catch (err) {
+        window.showError('Failed to update priority: ' + err.message);
+      }
+    };
 window.editingId = null;
 
     window.startEdit = function(id) {
@@ -297,7 +336,8 @@ window.editingId = null;
         if (container) {
           const idx = window.STATUS_ORDER.indexOf(task.status);
           const el = document.createElement('div');
-          el.className = 'task';
+          const prio = task.priority || 'regular';
+          el.className = 'task p-' + prio;
           el.draggable = true;
           el.dataset.taskId = task.id;
          if (window.editingId === task.id) {
@@ -312,10 +352,12 @@ window.editingId = null;
             `;
           } else {
             el.innerHTML = `
+              <div class="badge p-${prio}">${window.PRIO[prio].label}</div>
               <div class="task-text">${window.escapeHtml(task.text)}</div>
               <div class="task-actions">
                 <button class="move-btn" ${idx <= 0 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, -1)">←</button>
                 <button class="move-btn" ${idx >= 2 ? 'disabled' : ''} onclick="window.moveTask(${task.id}, 1)">→</button>
+                <button class="prio-btn" onclick="window.cyclePriority(${task.id})" title="Change priority">⚑</button>
                 <button class="edit-btn" onclick="window.startEdit(${task.id})">Edit</button>
                 <button class="delete-btn" onclick="window.deleteTask(${task.id})">✕</button>
               </div>
