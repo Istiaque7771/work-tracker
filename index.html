@@ -85,18 +85,18 @@
     </div>
 
     <div id="error" class="error" style="display: none;"></div>
-<div class="input-section">
-      <input type="text" id="taskInput" placeholder="Add a new task..." />
+<div class="input-section" style="display:flex; gap:10px; margin-bottom:2rem; align-items:center; flex-wrap:wrap;">
+      <input type="text" id="taskInput" placeholder="Add a new task..." style="flex:1; min-width:200px; padding:12px 14px; border:1px solid #ddd; border-radius:8px; font-size:15px;" />
       <select id="prioritySelect" style="padding:12px 10px; border:1px solid #ddd; border-radius:8px; font-size:15px; cursor:pointer;">
         <option value="high">🔴 জরুরি</option>
         <option value="important">🟠 গুরুত্বপূর্ণ</option>
         <option value="regular" selected>🔵 সাধারণ</option>
         <option value="low">⚪ কম জরুরি</option>
       </select>
-      <button onclick="addTask()">Add task</button>
+      <button onclick="addTask()" style="padding:12px 24px; background:#378ADD; color:white; border:none; border-radius:8px; font-weight:500; cursor:pointer; font-size:15px;">Add task</button>
     </div>
 
-    <label style="display:flex; align-items:center; gap:8px; margin:-1rem 0 1.5rem; font-size:14px; color:#666; cursor:pointer;">
+    <label style="display:flex; align-items:center; gap:8px; margin:0 0 1.5rem; font-size:14px; color:#666; cursor:pointer;">
       <input type="checkbox" id="banglaToggle" checked style="width:16px; height:16px; cursor:pointer;" />
       বাংলা হরফে লেখো (Banglish → বাংলা)
     </label>
