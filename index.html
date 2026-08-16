@@ -429,14 +429,38 @@ window.editingId = null;
           container.parentElement.style.background = 'white';
         });
         
-        container.addEventListener('drop', (e) => {
+container.addEventListener('drop', async (e) => {
           e.preventDefault();
           container.parentElement.style.background = 'white';
-          
-          if (window.draggedElement) {
-            const taskId = parseInt(window.draggedElement.dataset.taskId);
-            const newStatus = container.dataset.status;
-            window.updateTaskStatus(taskId, newStatus);
+          if (!window.draggedElement) return;
+
+          const taskId = parseInt(window.draggedElement.dataset.taskId);
+          const task = window.tasks.find(t => t.id === taskId);
+          if (!task) return;
+          const newStatus = container.dataset.status;
+
+          const cards = [...container.querySelectorAll('.task')].filter(c => c !== window.draggedElement);
+          let insertAt = cards.length;
+          for (let i = 0; i < cards.length; i++) {
+            const box = cards[i].getBoundingClientRect();
+            if (e.clientY < box.top + box.height / 2) { insertAt = i; break; }
+          }
+
+          const ids = cards.map(c => parseInt(c.dataset.taskId));
+          ids.splice(insertAt, 0, taskId);
+
+          try {
+            if (task.status !== newStatus) {
+              await window.apiCall('PATCH', '/tasks?id=eq.' + taskId, { status: newStatus });
+            }
+            const base = Math.min(...window.tasks.filter(t => t.status === newStatus || t.id === taskId)
+                                    .map(t => t.sort_order ?? t.id), 1);
+            for (let i = 0; i < ids.length; i++) {
+              await window.apiCall('PATCH', '/tasks?id=eq.' + ids[i], { sort_order: base + i });
+            }
+            await window.loadTasks();
+          } catch (err) {
+            window.showError('Failed to move: ' + err.message);
           }
         });
       });
